@@ -8,12 +8,16 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 global $pdo;
 
 /**
+ * Fetch exchange rate from the API.
+ *
+ * @param string $apiKey
+ * @return float
  * @throws Exception
  */
-function fetchExchangeRate($apiKey)
+function fetchExchangeRate(string $apiKey): float
 {
     $exchangeRateUrl = "https://apilayer.net/api/live?access_key=$apiKey&source=EUR&currencies=GBP";
-    $response = file_get_contents($exchangeRateUrl);
+    $response = @file_get_contents($exchangeRateUrl);
 
     if ($response === false) {
         throw new Exception('Error fetching exchange rate');
@@ -24,13 +28,16 @@ function fetchExchangeRate($apiKey)
         throw new Exception('Exchange rate not found');
     }
 
-    return $data['quotes']['EURGBP'];
+    return (float)$data['quotes']['EURGBP'];
 }
 
 /**
+ * Load spreadsheet data from the specified URL.
+ *
+ * @return array
  * @throws Exception
  */
-function loadSpreadsheet()
+function loadSpreadsheet(): array
 {
     $fileUrl = 'https://www.alko.fi/INTERSHOP/static/WFS/Alko-OnlineShop-Site/-/Alko-OnlineShop/fi_FI/Alkon%20Hinnasto%20Tekstitiedostona/alkon-hinnasto-tekstitiedostona.xlsx';
     $file = '../assets/alkon-hinnasto-tekstitiedostona.xlsx';
@@ -47,9 +54,13 @@ function loadSpreadsheet()
 }
 
 /**
+ * Insert or update products in the database.
+ *
+ * @param PDO $pdo
+ * @param array $batchInsert
  * @throws Exception
  */
-function insertOrUpdateProducts($pdo, $batchInsert)
+function insertOrUpdateProducts(PDO $pdo, array $batchInsert): void
 {
     $placeholders = rtrim(str_repeat('(?, ?, ?, ?, ?), ', count($batchInsert)), ', ');
     $stmt = $pdo->prepare("INSERT INTO products (number, name, bottlesize, price, priceGBP)
@@ -71,8 +82,7 @@ function insertOrUpdateProducts($pdo, $batchInsert)
 }
 
 try {
-//    $apiKey = 'e5adcce0a8be7b2cd79a13f7bbf78a1b';
-    $apiKey = '999f54281298bc2df2a470d24d4ff82c';
+    $apiKey = 'e5adcce0a8be7b2cd79a13f7bbf78a1b';
     $exchangeRate = fetchExchangeRate($apiKey);
 
     $sheetData = loadSpreadsheet();
@@ -90,7 +100,9 @@ try {
         $number = $row['A']; // 'Numero'
         $name = $row['B'];   // 'Nimi'
         $bottlesize = $row['D']; // 'Pullokoko'
-        $price = number_format((float)$row['E'], 2, '.', ''); // 'Hinta'
+        $price = (!empty($row['E']) && is_numeric($row['E']))
+            ? number_format((float)$row['E'], 2, '.', '')
+            : 0; // 'Hinta'
         $priceGBP = number_format($price * $exchangeRate, 2, '.', ''); // Convert to GBP
 
         $batchInsert[] = [$number, $name, $bottlesize, $price, $priceGBP];
@@ -103,7 +115,7 @@ try {
                 $batchInsert = [];
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo "Batch insert failed: " . $e->getMessage();
+                error_log("Batch insert failed: " . $e->getMessage());
             }
         }
     }
@@ -115,9 +127,9 @@ try {
             $pdo->commit();
         } catch (Exception $e) {
             $pdo->rollBack();
-            echo "Final insert failed: " . $e->getMessage();
+            error_log("Final insert failed: " . $e->getMessage());
         }
     }
 } catch (Exception $e) {
-    echo "Error: " . $e->getMessage();
+    error_log("Error: " . $e->getMessage());
 }
