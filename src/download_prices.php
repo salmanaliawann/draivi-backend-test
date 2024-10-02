@@ -30,8 +30,15 @@ function fetchExchangeRate($apiKey)
 /**
  * @throws Exception
  */
-function loadSpreadsheet($file)
+function loadSpreadsheet()
 {
+    $fileUrl = 'https://www.alko.fi/INTERSHOP/static/WFS/Alko-OnlineShop-Site/-/Alko-OnlineShop/fi_FI/Alkon%20Hinnasto%20Tekstitiedostona/alkon-hinnasto-tekstitiedostona.xlsx';
+    $file = '../assets/alkon-hinnasto-tekstitiedostona.xlsx';
+
+    if (file_put_contents($file, file_get_contents($fileUrl)) === false) {
+        throw new Exception('Error downloading the Excel file');
+    }
+
     if (!file_exists($file)) {
         throw new Exception('Excel file not found');
     }
@@ -68,8 +75,7 @@ try {
     $apiKey = '999f54281298bc2df2a470d24d4ff82c';
     $exchangeRate = fetchExchangeRate($apiKey);
 
-    $file = '../assets/alkon-hinnasto-tekstitiedostona.xlsx';
-    $sheetData = loadSpreadsheet($file);
+    $sheetData = loadSpreadsheet();
 
     $batchInsert = [];
     $batchSize = 1000;
